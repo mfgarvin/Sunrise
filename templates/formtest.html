@@ -1,0 +1,20 @@
+$def with (form)
+
+<form name="main" method="post">
+<script src="static/jscolor.js"></script>
+
+<p>Rectangle color:
+<input name='newcolor' class="jscolor {onFineChange:'update(this)'}" value="cc66ff">
+
+<p id="rect" style="border:1px solid gray; width:161px; height:100px;">
+
+<script>
+function update(jscolor) {
+    // 'jscolor' instance can be used as a string
+    document.getElementById('rect').style.backgroundColor = '#' + jscolor
+}
+</script>
+
+$if not form.valid: <p class="error">Something's not right</p>
+$:form.render()
+<input type="submit" />    </form>
