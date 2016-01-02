@@ -28,6 +28,7 @@ app = web.application(urls, globals())
 myform = form.Form(
     form.Radio(name='AM/PM', args=['AM', 'PM'],value='AM'),
     form.Radio(name='Style', args=['Increase', 'Decrease'],value='Increase'),
+    form.Radio(name='Brightness', args=['Low', 'Medium', 'High'],value='Medium'),
     form.Dropdown(name='Hour', args=['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],value='6'),
     form.Dropdown(name='Minute', args=['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'], value='30'),
     form.Textbox("Length",
@@ -71,7 +72,7 @@ def fade(ired,igreen,iblue,time,direction):
 	            global red
 	            if direction == 1:
 	                if redorig != 0:
-			    red = red + 0.001
+			    red = red + 0.0005
 	                else:
 			    red = 0
 			if red >= redorig:
@@ -80,10 +81,12 @@ def fade(ired,igreen,iblue,time,direction):
 			    red = redorig
 		    else:
 	                if redorig != 0:
-			    red = red - 0.001
+			    red = red - 0.0005
 			else:
 			    red = 0
 		        if red < 0:
+			    red  = 0
+			    subprocess.call("echo '%d'='%f' > /dev/pi-blaster" % (rLed,red), shell=True)
 			    break
 		    subprocess.call("echo '%d'='%f' > /dev/pi-blaster" % (rLed, red), shell=True)
 	            if time != 0:
@@ -101,7 +104,7 @@ def fade(ired,igreen,iblue,time,direction):
 	            global green
 	            if direction == 1:
 	                if greenorig != 0:
-		            green = green + 0.001
+		            green = green + 0.0005
 	                else:
 			     green = 0
 			if green >= greenorig:
@@ -110,10 +113,12 @@ def fade(ired,igreen,iblue,time,direction):
 			    green = greenorig
 		    else:
 			if greenorig != 0:
-			    green = green - 0.001
+			    green = green - 0.0005
 			else:
 			    green = 0
 			if green < 0:
+			    green = 0
+			    subprocess.call("echo '%d'='%f' > /dev/pi-blaster" % (gLed,green), shell=True)
 			    break
 		    subprocess.call("echo '%d'='%f' > /dev/pi-blaster" % (gLed,green), shell=True)
 	            if time != 0:
@@ -131,7 +136,7 @@ def fade(ired,igreen,iblue,time,direction):
 	            global blue
 	            if direction == 1:
 		        if blueorig != 0:
-	                    blue = blue + 0.001
+	                    blue = blue + 0.0005
 		        else:
 			    blue = 0
 			if blue >= blueorig:
@@ -140,10 +145,12 @@ def fade(ired,igreen,iblue,time,direction):
 			    blue = blueorig
 	            else:
 			if blueorig != 0:
-	                    blue = blue - 0.001
+	                    blue = blue - 0.0005
 			else:
 			    blue = 0
 			if blue < 0:
+			    blue = 0
+			    subprocess.call("echo '%d'='%f' > /dev/pi-blaster" % (bLed,blue), shell=True)
 			    break
 		    subprocess.call("echo '%d'='%f' > /dev/pi-blaster" % (bLed,blue), shell=True)
 	            if time != 0:
@@ -290,9 +297,9 @@ class index:
         return render.formtest(form)
 	print ("Page Opened")
     def POST(self):
-#	global redvalue
-#	global greenvalue
-#	global bluevalue
+	global redvalue
+	global greenvalue
+	global bluevalue
 	def hex_to_rgb(value):
 	    global redvalue
 	    global greenvalue
@@ -318,6 +325,17 @@ class index:
 #	    style = form.d.Style
 	    hex_to_rgb(color)
 #	    print(color,redvalue,greenvalue,bluevalue,int(time),style)
+	    if form.d.Brightness == 'Low':
+		redvalue = float(redvalue) * 0.33
+		greenvalue = float(greenvalue) * 0.33
+		bluevalue = float(bluevalue) * 0.33
+	    elif form.d.Brightness == 'Medium':
+		redvalue = float(redvalue) * 0.66
+		greenvalue = float(greenvalue) * 0.66
+		bluevalue = float(bluevalue) * 0.66
+	    elif form.d.Brightness == 'High':
+		#Do Nothin
+		pass
 	    ledthread=threading.Thread(target=startfade, args=(float(redvalue),float(greenvalue),float(bluevalue),float(time),style))
             ledthread.start()
 #	    fade(float(redvalue),float(greenvalue),float(bluevalue),float(time),style)	
