@@ -4,6 +4,7 @@ import threading
 import time as timelib
 import web
 from web import form
+import RPi.GPIO as GPIO
 #Setting up the Pi...
 bLed = 17
 gLed = 22
@@ -21,6 +22,14 @@ render = web.template.render('templates/')
 urls = ('/', 'index')
 app = web.application(urls, globals())
 
+#Button Press Config
+SHORT_PRESS = 300 #milliseconds
+LONG_PRESS = 1500 
+#Software GPIO for Button Inputs
+print(GPIO.VERSION)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(24, GPIO.IN, pull_up_down = GPIO.PUD_UP)
+
 myform = form.Form(
     form.Radio(name='Style', args=['Increase', 'Decrease'],value='Increase'),
     form.Radio(name='Brightness', args=['Low', 'Medium', 'High'],value='Medium'),
@@ -33,6 +42,51 @@ myform = form.Form(
         form.regexp('\d+', 'Need a numerical length here...')))
 
 print("Welcome to the prototype sunrise alarm clock. Follow the online prompts to decide on a color, fade in time, blink rate, etc")
+def button():
+    global running
+    global reset
+    global red
+    global green
+    global blue
+    override = 0
+    presstime = 0
+    while True:
+	try:
+	    timelib.sleep(0.05)
+	    GPIO.wait_for_edge(24, GPIO.FALLING)
+#	    print("Button Pressed")
+	    presstime = timelib.time()
+	    timelib.sleep(0.05)
+	    GPIO.wait_for_edge(24, GPIO.RISING)
+#	    print("Button Released")
+	    releasetime = timelib.time()
+	    presstime = releasetime - presstime
+	    print(presstime)
+	except RuntimeError:
+	    print ("There's been an error")
+	if .1 <= presstime <= 2:
+	    print("Short Press")
+	    if red > 0 or green > 0 or blue > 0 or override == 1:
+		global reset
+		running = 0
+		reset = 1
+		red = 0
+		green = 0
+		blue = 0
+		timelib.sleep(0.1)
+		led(0,0,0)
+		override = 0	
+		#RESET LED values and turn off
+		print ("Stop 1")
+	    else:
+		running = 0
+		reset = 1
+		override = 1
+		led(1,0.63137255,0.09803922) #Turn on preset color
+	elif 2 < presstime:
+	    print("Long Press")
+	timelib.sleep(0.05)
+
 def led(red,green,blue):
 	subprocess.call("echo '%d'='%f' > /dev/pi-blaster" % (rLed,red), shell=True)
 	subprocess.call("echo '%d'='%f' > /dev/pi-blaster" % (gLed,green), shell=True)
@@ -157,15 +211,17 @@ def fade(ired,igreen,iblue,time,direction):
 	def watch():
 	    global reset
 	    while led_event.is_set(): 
-		if redthread.is_alive() or bluethread.is_alive() or greenthread.is_alive():
+		if reset == 1:
+		    led_event.clear()
+		    print("Stop 2")
+		    break		
+		elif redthread.is_alive() or bluethread.is_alive() or greenthread.is_alive():
 		    timelib.sleep(0.25)
+		    print(reset)
 		else:
 		    led_event.clear()
 		    print("LED activity has finished, waiting for fade() to be called again.")
 		    break
-		if reset == 1:
-		    led_event.clear()
-		    break		
     	led_event = threading.Event()
         led_event.set()
         redthread = threading.Thread(target=redfade)
@@ -192,16 +248,16 @@ def startfade(red,green,blue,time,direction,hour,minute,s):
     global running
     global nosched
     running = 1
-    led(0,0,0)
-    timelib.sleep(0.1)
-    led(0,0.1,0)
-    timelib.sleep(0.1)
-    led(0,0,0)
-    timelib.sleep(0.1)
-    led(0,0.1,0)
-    timelib.sleep(0.1)
-    led(0,0,0)
     reset = 1
+    led(0,0,0)
+    timelib.sleep(0.1)
+    led(0,0.1,0)
+    timelib.sleep(0.1)
+    led(0,0,0)
+    timelib.sleep(0.1)
+    led(0,0.1,0)
+    timelib.sleep(0.1)
+    led(0,0,0)
     timelib.sleep(0.5)
     reset = 0
     if str(s) == 'PM':
@@ -212,13 +268,17 @@ def startfade(red,green,blue,time,direction,hour,minute,s):
     if str(s) == 'AM' and hour == 12:
 	hour = 0
     while running == 1:
-        now = timelib.localtime()
-	if hour == now.tm_hour and minute == now.tm_min or nosched == 'True':
-	    fade(red,green,blue,time,direction)
-	    return
-        else:
-	    timelib.sleep(1)
-
+	try:
+            now = timelib.localtime()
+	    if hour == now.tm_hour and minute == now.tm_min or nosched == 'True':
+	        fade(red,green,blue,time,direction)
+	        return
+            else:
+		print ("Sleeping")
+	        timelib.sleep(1)
+        except KeyboardInterrupt:
+	    print ("Stopping")
+	    break	
 class index:
     global nosched
     def GET(self):
@@ -277,4 +337,6 @@ class index:
             return "Done. Color: %s, %f, %f, %f. Time: %d Style: %d Schedule: %d:%d %s Now? %s " % (str(color), float(redvalue), float(greenvalue), float(bluevalue), int(time), int(style), int(hour), int(minute), str(s), nosched)
 if __name__=="__main__":
     web.internalerror = web.debugerror
+    buttonwatch = threading.Thread(target=button)
+    buttonwatch.start()
     app.run()
